@@ -1,0 +1,17 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# Node / VS Code extension
+node_modules/
+out/
+*.vsix
+
+# macOS
+.DS_Store
+
+# Test files
+test.py
