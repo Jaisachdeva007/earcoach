@@ -35,9 +35,12 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(statusBar);
 
   // Track every text edit so we can detect pauses + backspace churn.
+  const SUPPORTED_LANGUAGES = ["python", "javascript", "typescript", "java", "cpp", "c"];
+
   const onChange = vscode.workspace.onDidChangeTextDocument((e) => {
     if (!isEnabled) return;
     if (e.document !== vscode.window.activeTextEditor?.document) return;
+    if (!SUPPORTED_LANGUAGES.includes(e.document.languageId)) return;
 
     lastEditTime = Date.now();
 
