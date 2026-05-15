@@ -122,6 +122,9 @@ async def health():
             "stuck": detector_state.is_stuck(),
             "last_keystroke_age_ms": detector_state.idle_ms(),
             "recent_backspaces": detector_state.recent_backspaces(),
+            "is_frustrated": detector_state.is_frustrated(),
+            "frustration_score": detector_state.frustration_score(),
+            "burst_keys_in_window": detector_state.burst_keys_in_window(),
         },
     }
 
