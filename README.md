@@ -12,11 +12,17 @@ You're coding. You hit a bug. You stop typing.
 
 After 90 seconds of inactivity, EarCoach:
 1. Reads your current code and any VS Code diagnostics (errors/warnings)
-2. Sends it to a local LLM (no cloud, fully private)
-3. Gets back a Socratic question — not the answer, a nudge
-4. Speaks it into your earphones
+2. Fuses multimodal signals: typing idle time, backspace churn, frustration score, and head stillness from the webcam
+3. Sends all context to a local LLM (no cloud, fully private)
+4. Gets back a Socratic question — not the answer, a nudge
+5. Speaks it into your earphones
 
 Example: stuck on an `IndexError` in a list reversal → you hear *"What index does your loop start at, and when does it stop?"*
+
+**Interact with hints:**
+- `Cmd+Shift+H` — ask for a follow-up / elaboration
+- `Cmd+Shift+E` — trigger a hint immediately
+- `Escape` (when hint is active) — dismiss
 
 ---
 
@@ -24,19 +30,22 @@ Example: stuck on an `IndexError` in a list reversal → you hear *"What index d
 
 ```
 [VS Code Extension (TypeScript)]
-   reads active file code + diagnostics + cursor line
-   detects: long pause (90s) OR backspace churn (8 deletions/30s)
+   reads: active file code + diagnostics + cursor line
+   detects: long pause (90s) | backspace churn | manual trigger | follow-up
+   languages: Python, JavaScript, TypeScript, Java, C, C++
             │  HTTP POST /hint
             ▼
 [FastAPI Backend (Python)]
+   ├─ Multimodal context fusion (keystroke + head + frustration)
    ├─ Socratic system prompt + Ollama (llama3.2:1b, local)  → hint text
    ├─ edge-tts (en-US-AriaNeural)                           → mp3
    └─ playsound → default audio device                      → earphones
             ▲
             │
-[Stuck Detector (pynput)]
-   global keystroke listener — corroborates VS Code idle signal
-   exposes idle_ms / backspace count via GET /health
+[Stuck Detector (pynput)]            [Head Stillness (MediaPipe + webcam)]
+   OS-wide keystroke listener           face mesh → nose-tip movement score
+   idle_ms, backspace churn,            still head + long pause = stronger
+   frustration score (burst analysis)   stuck signal
 ```
 
 Fully local. No data leaves the machine.
@@ -57,6 +66,16 @@ Fully local. No data leaves the machine.
 ollama pull llama3.2:1b
 ollama serve
 ```
+
+### 1b. (Optional) Enable head stillness detection
+
+Requires camera access: **System Settings → Privacy & Security → Camera → Terminal**
+
+```bash
+pip install mediapipe opencv-python
+```
+
+If not installed, the system works without it — head signals show as `unavailable` in `/health`.
 
 ### 2. Start the backend
 
