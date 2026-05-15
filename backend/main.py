@@ -29,6 +29,7 @@ from playsound import playsound
 from detector import detector_state        # keystroke signals
 from head_stillness import head_state     # camera-based head stillness
 from stuck_scorer import score_stuck, signals_from_request
+from code_runner import run_code
 
 # ---------------------------------------------------------------------------
 # Config
@@ -71,7 +72,10 @@ USER_TEMPLATE = """\
 Language: {language}
 File: {file_name}, cursor on line {cursor_line}
 
-*** ERRORS FLAGGED IN EDITOR (your hint MUST target the first error below) ***
+*** ACTUAL RUNTIME OUTPUT (highest priority — anchor your hint here first) ***
+{runtime_block}
+
+*** STATIC ERRORS FLAGGED IN EDITOR ***
 {diag_block}
 
 Student's current code:
@@ -86,8 +90,8 @@ Context signals (do NOT mention these to the student):
 - Head movement: {head_movement}px (low = staring at screen)
 - Trigger: {trigger}
 
-Reply with ONE Socratic spoken question (max two sentences) anchored to the first error above.
-If no error is listed, ask what output they expected versus what they got.
+Reply with ONE Socratic spoken question (max two sentences).
+Anchor to the runtime error first, then static errors, then ask about expected vs actual output.
 """
 
 
@@ -169,6 +173,7 @@ async def hint(req: HintRequest):
         frustration_score=detector_state.frustration_score(),
         head_movement=head_state.movement_score() if head_state.is_camera_ok() else "unavailable",
         diag_block=diag_block,
+        runtime_block=runtime_block,
         code=truncate_code(req.code),
     )
     user_prompt += follow_up_block
@@ -196,6 +201,14 @@ async def hint(req: HintRequest):
         return HintResponse(hint="", spoken=False, latency_ms=0)
 
     log.info("hint trigger=%s file=%s diags=%d score=%d", req.trigger, req.file_name, len(req.diagnostics), stuck.score)
+
+    # Run the code to capture runtime errors and actual output
+    run_result = await asyncio.to_thread(run_code, req.language, req.code)
+    if run_result:
+        runtime_block = run_result.error_summary
+        log.info("code runner: exit=%d timed_out=%s summary=%r", run_result.exit_code, run_result.timed_out, run_result.error_summary)
+    else:
+        runtime_block = "(runtime execution not available for this language)"
 
     try:
         text = await call_ollama(SOCRATIC_SYSTEM, user_prompt)
