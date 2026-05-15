@@ -5,3 +5,8 @@ pydantic>=2.6
 edge-tts>=6.1
 playsound==1.2.2
 pynput>=1.7
+
+# Head stillness detection (optional — gracefully disabled if not installed)
+# Requires camera access: System Settings → Privacy & Security → Camera → Terminal
+mediapipe>=0.10
+opencv-python>=4.9
