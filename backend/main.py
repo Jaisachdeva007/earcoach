@@ -55,37 +55,39 @@ spoken into their earphones, so it must be SHORT and CLEAR.
 STRICT RULES:
 1. Reply with at most TWO sentences.
 2. NEVER give the answer, the fixed code, or the exact bug location.
-3. Ask ONE guiding question that nudges them toward the bug.
-4. Reference the concept that's wrong (loop bound, type, indexing) without
-   naming the fix.
+3. If there is an error listed below, your hint MUST be specifically about
+   that error — not about the code in general, not about edge cases, not
+   about style. Stay anchored to the reported error.
+4. Ask ONE guiding question that nudges them toward understanding WHY that
+   specific error occurs. Reference the concept (loop bound, off-by-one,
+   wrong type, null pointer) without naming the fix.
 5. Use plain spoken English — no code snippets, no markdown, no symbols.
 6. Be warm, not condescending. They have been stuck for a while.
-
-If you cannot infer a useful hint, ask them to describe what they expect the
-code to do.
+7. If there is no error flagged, ask them to describe what output they
+   expected versus what they got.
 """
 
 USER_TEMPLATE = """\
-Trigger: {trigger}
 Language: {language}
-File: {file_name}
-Cursor line: {cursor_line}
+File: {file_name}, cursor on line {cursor_line}
 
-Multimodal stuck signals:
-- Keystroke idle: {idle_ms}ms
-- Backspace churn: {backspaces} recent deletions
-- Frustration score: {frustration_score} (0=calm, 1=frustrated)
-- Head movement: {head_movement}px avg (low = staring at screen)
-
-Errors and warnings currently flagged in the editor:
+*** ERRORS FLAGGED IN EDITOR (your hint MUST target the first error below) ***
 {diag_block}
 
-Current code:
+Student's current code:
 ```
 {code}
 ```
 
-Reply with ONE Socratic question (max two sentences, spoken aloud).
+Context signals (do NOT mention these to the student):
+- VS Code idle: {idle_ms}ms
+- Backspace churn: {backspaces} recent deletions
+- Frustration score: {frustration_score} (0=calm, 1=frustrated)
+- Head movement: {head_movement}px (low = staring at screen)
+- Trigger: {trigger}
+
+Reply with ONE Socratic spoken question (max two sentences) anchored to the first error above.
+If no error is listed, ask what output they expected versus what they got.
 """
 
 
