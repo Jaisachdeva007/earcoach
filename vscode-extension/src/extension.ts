@@ -21,6 +21,8 @@ let lastHintTime = 0;
 let isEnabled = true;
 let statusBar: vscode.StatusBarItem;
 let idleTimer: NodeJS.Timeout | undefined;
+let lastHintText = "";
+let hintActive = false;
 
 export function activate(context: vscode.ExtensionContext) {
   console.log("[EarCoach] activated");
@@ -73,6 +75,23 @@ export function activate(context: vscode.ExtensionContext) {
       vscode.window.showInformationMessage(
         `EarCoach is now ${isEnabled ? "ON" : "OFF"}.`
       );
+    })
+  );
+
+  // Dismiss current hint (Escape / AirPods tap proxy).
+  context.subscriptions.push(
+    vscode.commands.registerCommand("earcoach.dismiss", () => {
+      hintActive = false;
+      vscode.commands.executeCommand("setContext", "earcoachHintActive", false);
+      vscode.window.setStatusBarMessage("$(headphones) EarCoach: hint dismissed", 2000);
+      lastHintText = "";
+    })
+  );
+
+  // Follow-up: ask the LLM to elaborate on the last hint.
+  context.subscriptions.push(
+    vscode.commands.registerCommand("earcoach.followUp", () => {
+      void requestHint("follow_up");
     })
   );
 
@@ -174,6 +193,7 @@ function snapshotContext(trigger: string) {
     code,
     diagnostics: diags,
     file_name: doc.fileName.split(/[\\/]/).pop() ?? "untitled",
+    previous_hint: trigger === "follow_up" ? lastHintText : "",
   };
 }
 
@@ -201,11 +221,10 @@ async function requestHint(trigger: string) {
   try {
     const response = await postJson(url, ctx);
     if (response.hint) {
-      // Show the text version too, so the student has a fallback if audio is muted.
-      vscode.window.setStatusBarMessage(
-        `$(headphones) ${response.hint}`,
-        15000
-      );
+      lastHintText = response.hint;
+      hintActive = true;
+      vscode.commands.executeCommand("setContext", "earcoachHintActive", true);
+      vscode.window.setStatusBarMessage(`$(headphones) ${response.hint}`, 15000);
     }
   } catch (err) {
     console.error("[EarCoach] backend call failed:", err);

@@ -49,6 +49,31 @@
       {
         "command": "earcoach.toggle",
         "title": "EarCoach: Toggle on/off"
+      },
+      {
+        "command": "earcoach.dismiss",
+        "title": "EarCoach: Dismiss current hint"
+      },
+      {
+        "command": "earcoach.followUp",
+        "title": "EarCoach: Ask follow-up (explain more)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "earcoach.dismiss",
+        "key": "escape",
+        "when": "earcoachHintActive"
+      },
+      {
+        "command": "earcoach.followUp",
+        "key": "ctrl+shift+h",
+        "mac": "cmd+shift+h"
+      },
+      {
+        "command": "earcoach.askForHint",
+        "key": "ctrl+shift+e",
+        "mac": "cmd+shift+e"
       }
     ]
   },
