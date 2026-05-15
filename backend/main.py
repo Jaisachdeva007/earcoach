@@ -99,12 +99,13 @@ class Diagnostic(BaseModel):
 
 
 class HintRequest(BaseModel):
-    trigger: str = Field(..., description="long_pause | backspace_churn | manual")
+    trigger: str = Field(..., description="long_pause | backspace_churn | manual | follow_up")
     language: str
     file_name: str
     cursor_line: int
     code: str
     diagnostics: List[Diagnostic] = []
+    previous_hint: Optional[str] = None
 
 
 class HintResponse(BaseModel):
@@ -146,6 +147,10 @@ async def health():
 async def hint(req: HintRequest):
     started = time.perf_counter()
     diag_block = format_diagnostics(req.diagnostics)
+    follow_up_block = ""
+    if req.trigger == "follow_up" and req.previous_hint:
+        follow_up_block = f"\nPrevious hint given: {req.previous_hint}\nStudent asked for elaboration — go one step deeper, still Socratic.\n"
+
     user_prompt = USER_TEMPLATE.format(
         trigger=req.trigger,
         language=req.language,
@@ -158,6 +163,7 @@ async def hint(req: HintRequest):
         diag_block=diag_block,
         code=truncate_code(req.code),
     )
+    user_prompt += follow_up_block
 
     log.info("hint trigger=%s file=%s diags=%d", req.trigger, req.file_name, len(req.diagnostics))
 
