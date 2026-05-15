@@ -28,6 +28,7 @@ from playsound import playsound
 
 from detector import detector_state        # keystroke signals
 from head_stillness import head_state     # camera-based head stillness
+from stuck_scorer import score_stuck, signals_from_request
 
 # ---------------------------------------------------------------------------
 # Config
@@ -106,12 +107,17 @@ class HintRequest(BaseModel):
     code: str
     diagnostics: List[Diagnostic] = []
     previous_hint: Optional[str] = None
+    # VS Code-side signals for stuck scoring
+    vscode_idle_ms: int = 0
+    vscode_backspace_churn: bool = False
 
 
 class HintResponse(BaseModel):
     hint: str
     spoken: bool
     latency_ms: int
+    stuck_score: int = 0
+    stuck_breakdown: dict = {}
 
 
 # ---------------------------------------------------------------------------
@@ -165,7 +171,29 @@ async def hint(req: HintRequest):
     )
     user_prompt += follow_up_block
 
-    log.info("hint trigger=%s file=%s diags=%d", req.trigger, req.file_name, len(req.diagnostics))
+    # --- Multimodal stuck scoring ---
+    has_errors = any(d.severity == "error" for d in req.diagnostics)
+    has_warnings = any(d.severity == "warning" for d in req.diagnostics)
+    signals = signals_from_request(
+        trigger=req.trigger,
+        vscode_idle_ms=req.vscode_idle_ms,
+        has_errors=has_errors,
+        has_warnings=has_warnings,
+        backspace_churn=req.vscode_backspace_churn or detector_state.is_churning(),
+        os_idle_ms=detector_state.idle_ms(),
+        frustration_score=detector_state.frustration_score(),
+        head_available=head_state.is_camera_ok(),
+        head_still=head_state.is_still(),
+        head_movement=head_state.movement_score(),
+    )
+    stuck = score_stuck(signals)
+    log.info("stuck scorer: %s", stuck)
+
+    if not stuck.fired:
+        log.info("hint suppressed by stuck scorer (score=%d < threshold=%d)", stuck.score, stuck.threshold)
+        return HintResponse(hint="", spoken=False, latency_ms=0)
+
+    log.info("hint trigger=%s file=%s diags=%d score=%d", req.trigger, req.file_name, len(req.diagnostics), stuck.score)
 
     try:
         text = await call_ollama(SOCRATIC_SYSTEM, user_prompt)
@@ -184,7 +212,7 @@ async def hint(req: HintRequest):
 
     latency_ms = int((time.perf_counter() - started) * 1000)
     log.info("hint latency=%dms spoken=%s text=%r", latency_ms, spoken, text)
-    return HintResponse(hint=text, spoken=spoken, latency_ms=latency_ms)
+    return HintResponse(hint=text, spoken=spoken, latency_ms=latency_ms, stuck_score=stuck.score, stuck_breakdown=stuck.breakdown)
 
 
 # ---------------------------------------------------------------------------
