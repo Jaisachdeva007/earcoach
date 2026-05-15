@@ -26,7 +26,8 @@ from pydantic import BaseModel, Field
 import edge_tts
 from playsound import playsound
 
-from detector import detector_state  # shared in-process flag
+from detector import detector_state        # keystroke signals
+from head_stillness import head_state     # camera-based head stillness
 
 # ---------------------------------------------------------------------------
 # Config
@@ -68,6 +69,12 @@ Trigger: {trigger}
 Language: {language}
 File: {file_name}
 Cursor line: {cursor_line}
+
+Multimodal stuck signals:
+- Keystroke idle: {idle_ms}ms
+- Backspace churn: {backspaces} recent deletions
+- Frustration score: {frustration_score} (0=calm, 1=frustrated)
+- Head movement: {head_movement}px avg (low = staring at screen)
 
 Errors and warnings currently flagged in the editor:
 {diag_block}
@@ -126,6 +133,12 @@ async def health():
             "frustration_score": detector_state.frustration_score(),
             "burst_keys_in_window": detector_state.burst_keys_in_window(),
         },
+        "head": {
+            "available": head_state.is_available(),
+            "camera_ok": head_state.is_camera_ok(),
+            "is_still": head_state.is_still(),
+            "movement_score": head_state.movement_score(),
+        },
     }
 
 
@@ -138,6 +151,10 @@ async def hint(req: HintRequest):
         language=req.language,
         file_name=req.file_name,
         cursor_line=req.cursor_line,
+        idle_ms=detector_state.idle_ms(),
+        backspaces=detector_state.recent_backspaces(),
+        frustration_score=detector_state.frustration_score(),
+        head_movement=head_state.movement_score() if head_state.is_camera_ok() else "unavailable",
         diag_block=diag_block,
         code=truncate_code(req.code),
     )
@@ -255,9 +272,15 @@ async def speak(text: str) -> None:
 @app.on_event("startup")
 async def _start_detector():
     detector_state.start()
+    head_state.start()
     log.info("detector started; ollama=%s model=%s", OLLAMA_URL, OLLAMA_MODEL)
+    if head_state.is_available():
+        log.info("head stillness detector started (mediapipe)")
+    else:
+        log.info("head stillness detector unavailable (install mediapipe + opencv)")
 
 
 @app.on_event("shutdown")
 async def _stop_detector():
     detector_state.stop()
+    head_state.stop()
