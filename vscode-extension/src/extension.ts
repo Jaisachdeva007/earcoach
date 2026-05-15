@@ -194,6 +194,8 @@ function snapshotContext(trigger: string) {
     diagnostics: diags,
     file_name: doc.fileName.split(/[\\/]/).pop() ?? "untitled",
     previous_hint: trigger === "follow_up" ? lastHintText : "",
+    vscode_idle_ms: Date.now() - lastEditTime,
+    vscode_backspace_churn: backspaceTimestamps.length >= getConfig().get<number>("backspaceThreshold", 8),
   };
 }
 
