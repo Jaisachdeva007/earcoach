@@ -1,0 +1,65 @@
+{
+  "name": "earcoach",
+  "displayName": "EarCoach",
+  "description": "Earable AI scaffolding for novice programmers — detects when you're stuck and whispers a Socratic hint.",
+  "version": "0.1.0",
+  "publisher": "earcoach",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "EarCoach",
+      "properties": {
+        "earcoach.backendUrl": {
+          "type": "string",
+          "default": "http://localhost:8000/hint",
+          "description": "URL of the EarCoach FastAPI backend."
+        },
+        "earcoach.pauseThresholdMs": {
+          "type": "number",
+          "default": 90000,
+          "description": "How long the user must be idle (ms) before EarCoach considers them stuck."
+        },
+        "earcoach.backspaceWindowMs": {
+          "type": "number",
+          "default": 30000,
+          "description": "Time window (ms) over which backspaces are counted."
+        },
+        "earcoach.backspaceThreshold": {
+          "type": "number",
+          "default": 8,
+          "description": "Number of backspaces in the window that signals churn."
+        },
+        "earcoach.cooldownMs": {
+          "type": "number",
+          "default": 120000,
+          "description": "Minimum time between hints so the user isn't spammed."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "earcoach.askForHint",
+        "title": "EarCoach: Ask for a hint now"
+      },
+      {
+        "command": "earcoach.toggle",
+        "title": "EarCoach: Toggle on/off"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.3.0"
+  }
+}
