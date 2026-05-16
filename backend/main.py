@@ -30,6 +30,7 @@ from detector import detector_state        # keystroke signals
 from head_stillness import head_state     # camera-based head stillness
 from stuck_scorer import score_stuck, signals_from_request
 from code_runner import run_code
+from session_logger import session_logger
 
 # ---------------------------------------------------------------------------
 # Config
@@ -198,6 +199,13 @@ async def hint(req: HintRequest):
 
     if not stuck.fired:
         log.info("hint suppressed by stuck scorer (score=%d < threshold=%d)", stuck.score, stuck.threshold)
+        session_logger.log_suppressed(
+            trigger=req.trigger,
+            stuck_score=stuck.score,
+            stuck_breakdown=stuck.breakdown,
+            language=req.language,
+            file_name=req.file_name,
+        )
         return HintResponse(hint="", spoken=False, latency_ms=0)
 
     log.info("hint trigger=%s file=%s diags=%d score=%d", req.trigger, req.file_name, len(req.diagnostics), stuck.score)
@@ -227,6 +235,25 @@ async def hint(req: HintRequest):
 
     latency_ms = int((time.perf_counter() - started) * 1000)
     log.info("hint latency=%dms spoken=%s text=%r", latency_ms, spoken, text)
+
+    session_logger.log_hint(
+        trigger=req.trigger,
+        language=req.language,
+        file_name=req.file_name,
+        stuck_score=stuck.score,
+        stuck_breakdown=stuck.breakdown,
+        latency_ms=latency_ms,
+        spoken=spoken,
+        hint_text=text,
+        error_count=sum(1 for d in req.diagnostics if d.severity == "error"),
+        warning_count=sum(1 for d in req.diagnostics if d.severity == "warning"),
+        runtime_error=run_result.error_summary if run_result else "",
+        frustration_score=detector_state.frustration_score(),
+        head_movement=head_state.movement_score(),
+        head_available=head_state.is_camera_ok(),
+        vscode_idle_ms=req.vscode_idle_ms,
+    )
+
     return HintResponse(hint=text, spoken=spoken, latency_ms=latency_ms, stuck_score=stuck.score, stuck_breakdown=stuck.breakdown)
 
 
@@ -322,6 +349,7 @@ async def speak(text: str) -> None:
 async def _start_detector():
     detector_state.start()
     head_state.start()
+    session_logger.start()
     log.info("detector started; ollama=%s model=%s", OLLAMA_URL, OLLAMA_MODEL)
     if head_state.is_available():
         log.info("head stillness detector started (mediapipe)")
@@ -333,3 +361,4 @@ async def _start_detector():
 async def _stop_detector():
     detector_state.stop()
     head_state.stop()
+    session_logger.stop()
