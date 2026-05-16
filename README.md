@@ -2,27 +2,26 @@
 
 Earable AI scaffolding for novice programmers. Detects when a student is stuck while coding in VS Code and whispers a Socratic hint into their earphones — without breaking their visual focus on the code.
 
-> System paper target: **ISWC 2026 Brief** (3 pages)
-
 ---
 
 ## How it works
 
 You're coding. You hit a bug. You stop typing.
 
-After 90 seconds of inactivity, EarCoach:
-1. Reads your current code and any VS Code diagnostics (errors/warnings)
-2. Fuses multimodal signals: typing idle time, backspace churn, frustration score, and head stillness from the webcam
-3. Sends all context to a local LLM (no cloud, fully private)
-4. Gets back a Socratic question — not the answer, a nudge
+EarCoach detects you're stuck using a multimodal confidence model — combining typing idle time, backspace churn, frustration signals, and head stillness from your webcam. When the score crosses a threshold, it:
+
+1. Runs your code and captures the actual runtime error
+2. Reads VS Code diagnostics (static errors and warnings)
+3. Fuses all signals and sends context to a local LLM (no cloud, fully private)
+4. Gets back a Socratic question — not the answer, a nudge toward understanding
 5. Speaks it into your earphones
 
-Example: stuck on an `IndexError` in a list reversal → you hear *"What index does your loop start at, and when does it stop?"*
+Example: stuck on an `IndexError` in a list reversal → you hear *"What index does your loop access when `i` is zero?"*
 
-**Interact with hints:**
-- `Cmd+Shift+H` — ask for a follow-up / elaboration
+**Keyboard shortcuts:**
 - `Cmd+Shift+E` — trigger a hint immediately
-- `Escape` (when hint is active) — dismiss
+- `Cmd+Shift+H` — ask for a follow-up / elaboration on the last hint
+- `Escape` — dismiss the current hint
 
 ---
 
@@ -31,21 +30,23 @@ Example: stuck on an `IndexError` in a list reversal → you hear *"What index d
 ```
 [VS Code Extension (TypeScript)]
    reads: active file code + diagnostics + cursor line
-   detects: long pause (90s) | backspace churn | manual trigger | follow-up
+   detects: long pause (90s) | backspace churn | manual | follow-up
    languages: Python, JavaScript, TypeScript, Java, C, C++
-            │  HTTP POST /hint
+            │  HTTP POST /hint  (code + diagnostics + idle time + churn)
             ▼
 [FastAPI Backend (Python)]
-   ├─ Multimodal context fusion (keystroke + head + frustration)
-   ├─ Socratic system prompt + Ollama (llama3.2:1b, local)  → hint text
-   ├─ edge-tts (en-US-AriaNeural)                           → mp3
-   └─ playsound → default audio device                      → earphones
+   ├─ Code Runner  → executes code, captures runtime errors (IndexError, etc.)
+   ├─ Stuck Scorer → multimodal confidence score (keystroke + head + frustration)
+   ├─ Ollama LLM (llama3.2:1b, fully local) → Socratic hint text
+   ├─ edge-tts (en-US-AriaNeural) → mp3
+   ├─ playsound → default audio device → earphones
+   └─ Session Logger → ~/earcoach_sessions/*.jsonl
             ▲
             │
-[Stuck Detector (pynput)]            [Head Stillness (MediaPipe + webcam)]
-   OS-wide keystroke listener           face mesh → nose-tip movement score
-   idle_ms, backspace churn,            still head + long pause = stronger
-   frustration score (burst analysis)   stuck signal
+[Keystroke Detector (pynput)]       [Head Stillness (MediaPipe + webcam)]
+   OS-wide idle time                  nose-tip movement via face mesh
+   backspace churn                    still head = stronger stuck signal
+   frustration score (burst → silence)
 ```
 
 Fully local. No data leaves the machine.
@@ -75,7 +76,7 @@ Requires camera access: **System Settings → Privacy & Security → Camera → 
 pip install mediapipe opencv-python
 ```
 
-If not installed, the system works without it — head signals show as `unavailable` in `/health`.
+If not installed, EarCoach works fine without it — head signals show as `unavailable` in `/health`.
 
 ### 2. Start the backend
 
@@ -90,6 +91,8 @@ Verify it's running:
 ```bash
 curl http://localhost:8000/health
 ```
+
+Session logs are written automatically to `~/earcoach_sessions/` on startup.
 
 ### 3. Smoke test (no VS Code needed)
 
@@ -108,14 +111,33 @@ npm install
 npm run compile
 ```
 
-Open the `vscode-extension` folder in VS Code and press **F5**. A new **Extension Development Host** window opens with EarCoach loaded.
+Open the `vscode-extension` folder in VS Code and press **F5**. A new **Extension Development Host** window opens with EarCoach active.
 
 In that window:
-- Open any `.py` file with a bug
-- Stop typing for 90 seconds
+- Open any `.py`, `.js`, `.ts`, `.java`, `.c`, or `.cpp` file
+- Write some code with a bug
+- Stop typing — EarCoach fires when the stuck score crosses the threshold
 - Listen
 
-Manual trigger anytime: `Cmd+Shift+P` → **EarCoach: Ask for a hint now**
+Manual trigger: `Cmd+Shift+P` → **EarCoach: Ask for a hint now**
+
+---
+
+## Session logs
+
+Every hint and suppressed event is automatically saved to `~/earcoach_sessions/session_<date>.jsonl`. Each line is a JSON record containing the hint text, latency, stuck score, trigger, language, runtime error, and multimodal signals.
+
+To analyse a session:
+
+```bash
+python3 backend/session_logger.py --analyse ~/earcoach_sessions/*.jsonl
+```
+
+Output includes:
+- Mean / median / min / max latency
+- Trigger breakdown
+- Stuck score distribution
+- Every hint in order for manual quality rating
 
 ---
 
@@ -137,14 +159,39 @@ Manual trigger anytime: `Cmd+Shift+P` → **EarCoach: Ask for a hint now**
 |---|---|---|
 | `EARCOACH_OLLAMA_MODEL` | `llama3.2:1b` | Ollama model |
 | `EARCOACH_TTS_VOICE` | `en-US-AriaNeural` | edge-tts voice |
-| `EARCOACH_SPEAK` | `1` | Set to `0` for text-only mode |
+| `EARCOACH_SPEAK` | `1` | Set to `0` for text-only (no audio) |
 | `EARCOACH_OLLAMA_URL` | `http://localhost:11434/api/generate` | Ollama endpoint |
+| `EARCOACH_STUCK_THRESHOLD` | `5` | Minimum stuck score to fire a hint |
 
 ---
 
-## macOS note
+## Stuck scoring model
 
-`pynput` needs accessibility access to monitor keystrokes. Go to **System Settings → Privacy & Security → Accessibility** and add Terminal. The system works without this — VS Code diagnostics still trigger hints — but the `/health` endpoint won't show live keystroke data.
+Hints only fire when the multimodal confidence score reaches the threshold (default: 5).
+
+| Signal | Score |
+|---|---|
+| VS Code idle ≥ 90s | +2 |
+| VS Code idle ≥ 30s | +1 |
+| Active error in editor | +3 |
+| Active warning in editor | +1 |
+| Backspace churn (≥ 8 deletions / 30s) | +2 |
+| Frustration score ≥ 0.5 | +2 |
+| Head still (webcam) | +2 |
+| Head moving (webcam) | −2 |
+
+Manual and follow-up triggers always fire regardless of score.
+
+---
+
+## macOS permissions
+
+| Feature | Permission needed |
+|---|---|
+| Keystroke detector | System Settings → Privacy & Security → Accessibility → Terminal |
+| Head stillness | System Settings → Privacy & Security → Camera → Terminal |
+
+Both are optional — EarCoach works without them, with reduced stuck detection accuracy.
 
 ---
 
@@ -153,31 +200,17 @@ Manual trigger anytime: `Cmd+Shift+P` → **EarCoach: Ask for a hint now**
 ```
 earcoach/
 ├── backend/
-│   ├── main.py          — FastAPI server, Ollama call, TTS, audio playback
-│   ├── detector.py      — pynput keystroke monitor
-│   ├── test_request.py  — smoke test
+│   ├── main.py            — FastAPI server, hint endpoint, startup
+│   ├── detector.py        — pynput keystroke monitor + frustration scoring
+│   ├── head_stillness.py  — MediaPipe webcam head movement detector
+│   ├── stuck_scorer.py    — multimodal confidence scoring model
+│   ├── code_runner.py     — executes student code, captures runtime errors
+│   ├── session_logger.py  — JSONL session log + analysis CLI
+│   ├── test_request.py    — smoke test
 │   └── requirements.txt
 └── vscode-extension/
     ├── src/
-    │   └── extension.ts — stuck detector, context capture, backend POST
+    │   └── extension.ts   — stuck detection, context capture, hint trigger
     ├── package.json
     └── tsconfig.json
 ```
-
----
-
-## Evaluation (paper)
-
-Three metrics, no user study required:
-
-| Metric | Method |
-|---|---|
-| End-to-end latency | `latency_ms` from `/hint` averaged over 20 simulated stuck events |
-| Hint quality | 30 hints rated on 4-point Socratic rubric (socratic / partial / directive / off-topic) |
-| Detection precision | Replay 10 coding sessions, count true vs. false stuck firings |
-
----
-
-## Research context
-
-EarCoach extends prior work on AI scaffolding for novice programmers (Sachdeva et al., DCUTL 2026) into the wearable domain. Existing AI coding tools (Copilot, ChatGPT) are screen-based and require the student to break focus. EarCoach delivers help through the earable channel — ambient, proactive, and hands-free.
