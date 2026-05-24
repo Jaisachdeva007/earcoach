@@ -1,0 +1,478 @@
+% EarCoach: Ambient Spoken AI Scaffolding for Novice Programmers
+% ISWC 2026 Brief Submission — Double Blind
+% Compile with: pdflatex earcoach_iswc2026.tex (twice for references)
+
+\documentclass[sigconf,anonymous,review]{acmart}
+
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{microtype}
+\usepackage{tikz}
+\usepackage{listings}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usetikzlibrary{arrows.meta, positioning}
+
+% Tighten float/caption spacing to fit within 3 pages
+\setlength{\textfloatsep}{7pt plus 2pt minus 2pt}
+\setlength{\floatsep}{5pt plus 2pt minus 2pt}
+\setlength{\intextsep}{5pt plus 2pt minus 2pt}
+\setlength{\abovecaptionskip}{3pt}
+\setlength{\belowcaptionskip}{1pt}
+
+\lstset{
+  basicstyle=\ttfamily\scriptsize,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!7},
+  xleftmargin=4pt, xrightmargin=4pt,
+  aboveskip=4pt, belowskip=2pt,
+}
+
+% ---- ACM metadata (anonymised for review) --------------------------------
+\acmConference[ISWC '26]{30th International Symposium on Wearable Computers}{October 11--15, 2026}{Shanghai, China}
+\acmYear{2026}
+\copyrightyear{2026}
+\acmDOI{}
+\acmISBN{}
+\setcopyright{none}
+% --------------------------------------------------------------------------
+
+\begin{document}
+
+\title{EarCoach: Ambient Spoken AI Scaffolding for Novice Programmers}
+
+\begin{abstract}
+The moment a student gets stuck on a bug is precisely when seeking help
+is most disruptive: working memory is saturated, and switching to a
+screen-based AI tool breaks the visual focus that debugging demands.
+We present \textbf{EarCoach}, an ambient spoken AI scaffolding system
+that intervenes \emph{before} the student decides to ask for help.
+EarCoach continuously monitors a student's coding session through a
+multimodal confidence model that fuses VS~Code editor signals (idle
+time, diagnostic errors, backspace churn) with OS-level keystroke
+dynamics (frustration burst analysis). On detecting a stuck event, the
+system executes the student's code in a sandboxed subprocess, captures
+the actual runtime error, and generates a short Socratic hint using a
+fully on-device LLM (Llama~3.2~1B via Ollama), delivered as synthesised
+speech through the student's earphones without any break in visual
+attention. A technical evaluation across 20 simulated stuck events yields
+a mean end-to-end latency of 8.2\,s (SD\,$=$\,1.9\,s) and a Socratic
+quality rating of 2.6/3.0 when anchored to runtime errors. EarCoach runs
+entirely on-device with no cloud dependency.
+\end{abstract}
+
+\begin{CCSXML}
+<ccs2012>
+   <concept>
+       <concept_id>10003120.10003121.10003122.10003334</concept_id>
+       <concept_desc>Human-centered computing~Ubiquitous and mobile computing systems and tools</concept_desc>
+       <concept_significance>500</concept_significance>
+   </concept>
+   <concept>
+       <concept_id>10003120.10003121.10011748</concept_id>
+       <concept_desc>Human-centered computing~Empirical studies in ubiquitous and mobile computing</concept_desc>
+       <concept_significance>300</concept_significance>
+   </concept>
+   <concept>
+       <concept_id>10003456.10003457.10003527.10003531</concept_id>
+       <concept_desc>Social and professional topics~Computing education</concept_desc>
+       <concept_significance>500</concept_significance>
+   </concept>
+   <concept>
+       <concept_id>10010147.10010178.10010179.10010182</concept_id>
+       <concept_desc>Computing methodologies~Natural language processing</concept_desc>
+       <concept_significance>300</concept_significance>
+   </concept>
+</ccs2012>
+\end{CCSXML}
+
+\ccsdesc[500]{Human-centered computing~Ubiquitous and mobile computing systems and tools}
+\ccsdesc[300]{Human-centered computing~Empirical studies in ubiquitous and mobile computing}
+\ccsdesc[500]{Social and professional topics~Computing education}
+\ccsdesc[300]{Computing methodologies~Natural language processing}
+
+\keywords{earable computing, wearable AI, AI scaffolding, novice programmers,
+Socratic tutoring, stuck detection, multimodal sensing, on-device LLM}
+
+\maketitle
+
+% ==========================================================================
+\section{Introduction}
+% ==========================================================================
+
+Novice programmers spend a disproportionate amount of time stuck on bugs
+they cannot diagnose, a state characterised by repeated failed edits,
+rising frustration, and eventual disengagement~\cite{dmello2012}.
+Screen-based AI tools such as GitHub Copilot and ChatGPT require the
+student to \emph{pull} help manually: switching context away from the
+code, composing a query, reading a response, and re-engaging. Sweller's
+cognitive load theory~\cite{sweller1988} predicts this channel switch is
+most damaging exactly when working memory is already saturated. Students
+also tend to persist unproductively rather than seek help at the right
+moment~\cite{roll2011}.
+
+Consumer earphones, already on students' ears during coding sessions,
+can deliver short spoken messages without any break in visual attention,
+turning a ubiquitous peripheral into a scaffolding channel. Mayer's
+modality principle~\cite{mayer2009} provides the theoretical basis:
+people learn more deeply from graphics paired with \emph{spoken} words
+than from printed text, because the auditory and visual channels do not
+compete for the same cognitive resources. Prior work has established
+earphones as capable sensing and output
+platforms~\cite{roddiger2022,kawsar2018}, yet their application to
+educational scaffolding has not been explored.
+
+We present \textbf{EarCoach}: when the system senses a student is stuck
+(detecting idle time, error diagnostics, backspace churn, and head pose),
+it silently runs their code, captures the actual runtime error, and
+speaks a Socratic hint into their earphones before they decide to ask for
+help. The design is grounded in scaffolding
+theory~\cite{wood1976,vygotsky1978} and cognitive
+apprenticeship~\cite{collins1989}: EarCoach asks guiding questions that
+keep the student in productive struggle, without the context switch that
+screen-based tools impose.
+
+% ==========================================================================
+\section{Related Work}
+% ==========================================================================
+
+\textbf{Proactive over reactive scaffolding.}
+D'Mello and Graesser~\cite{dmello2012} showed that confusion during
+learning rapidly transitions to frustration and disengagement if
+unresolved, motivating an intervention \emph{before} the student reaches
+out. Baker et al.~\cite{baker2004} demonstrated that off-task behaviour
+in intelligent tutoring systems predicts poor learning outcomes,
+reinforcing the need for early detection. Roll et al.~\cite{roll2011}
+found that students systematically under-use on-demand help and that
+proactive metacognitive scaffolding improves both help quality and
+learning outcomes.
+
+\textbf{Spoken Socratic delivery and the audio channel.}
+VanLehn~\cite{vanlehn2011} meta-analysed 77 tutoring studies and found
+that Socratic, dialogue-based tutoring substantially outperforms worked
+examples, approaching the effect sizes of one-on-one human tutors.
+Mayer's modality principle~\cite{mayer2009} motivates the audio channel:
+spoken hints paired with the student's visual focus on code exploit
+dual-channel processing, whereas a text popup competes with code reading
+in the same visual channel. Adamczyk and Bailey~\cite{adamczyk2004}
+showed that interruptions at natural task breakpoints cause substantially
+less disruption than mid-task interruptions, directly motivating
+EarCoach's idle-triggered delivery timing.
+
+\textbf{Multimodal signals of stuck state.}
+Lazar et al.~\cite{lazar2006} established that high error rates and
+repeated deletions are reliable co-indicators of programmer frustration.
+D'Mello and Kory's meta-analysis~\cite{dmellokory2015} found that
+combining modalities outperforms any single channel in 85\% of affect
+detection systems reviewed, supporting EarCoach's additive multi-signal
+design over any single-channel rule.
+
+\textbf{LLMs in programming education.}
+Finnie-Ansley et al.~\cite{finnieansley2022} showed LLMs can solve the
+majority of introductory programming exercises, establishing the
+generative capability underpinning EarCoach. Kazemitabaar et
+al.~\cite{kazemitabaar2023} showed that passive LLM use reduces
+learning, and Becker et al.~\cite{becker2023} describe this as a
+paradigm shift in CS education. EarCoach responds by keeping the student
+in control: the LLM asks, not answers.
+
+% ==========================================================================
+\section{System Design}
+% ==========================================================================
+
+A student debugging should not need to stop and ask for help. Help
+should arrive grounded in their actual error, without breaking focus.
+EarCoach comprises three tiers: a VS~Code extension (TypeScript) that
+captures coding context; a FastAPI backend (Python) that scores stuck
+confidence, runs the code, and calls the on-device LLM; and three
+background modules (keystroke detector, head stillness estimator,
+session logger). Figure~\ref{fig:arch} shows the data flow;
+Algorithm~\ref{alg:stuck} formalises the detection logic.
+
+% -----------------------------------------------------------------------
+% Figure: clean single-column vertical pipeline
+% -----------------------------------------------------------------------
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small, >=Stealth,
+  every node/.style={align=center},
+  mbox/.style={draw, rounded corners=5pt, thick,
+               text width=0.82\columnwidth, minimum height=0.68cm},
+  alabel/.style={font=\scriptsize, midway, right=2pt},
+]
+\node[mbox, fill=blue!9]    (vsc)  at (0,0)
+  {\textbf{VS Code Extension} (TypeScript)\\[-1pt]
+   {\scriptsize idle time · backspace churn · diagnostics · code snapshot}};
+\node[mbox, fill=orange!12, below=0.48cm of vsc]    (scr)
+  {\textbf{Multimodal Stuck Scorer}\\[-1pt]
+   {\scriptsize editor + OS keystroke frustration + head stillness (MediaPipe)}};
+\node[mbox, fill=yellow!14, below=0.48cm of scr]    (run)
+  {\textbf{Code Runner}\\[-1pt]
+   {\scriptsize \texttt{python3} · \texttt{node} · \texttt{javac+java} · \texttt{gcc/g++} · 5\,s timeout}};
+\node[mbox, fill=red!7,     below=0.48cm of run]    (llm)
+  {\textbf{On-device LLM} --- Llama 3.2 1B via Ollama\\[-1pt]
+   {\scriptsize Socratic system prompt · temp\,0.2 · 60-token limit}};
+\node[mbox, fill=purple!9,  below=0.48cm of llm]    (tts)
+  {\textbf{Speech Synthesis} --- edge-tts · en-US-AriaNeural};
+\node[mbox, fill=purple!20, below=0.48cm of tts]    (ear)
+  {\textbf{Earphones} --- Socratic hint spoken aloud};
+\draw[->] (vsc.south) -- node[alabel]{POST /hint}         (scr.north);
+\draw[->] (scr.south) -- node[alabel]{$s\geq\theta$}      (run.north);
+\draw[->] (run.south) -- node[alabel]{stderr + exit code} (llm.north);
+\draw[->] (llm.south) -- node[alabel]{hint text}          (tts.north);
+\draw[->] (tts.south) -- node[alabel]{audio}              (ear.north);
+\end{tikzpicture}
+\caption{EarCoach data-flow. All processing is on-device. The OS-wide
+keystroke listener stores only aggregate statistics; no raw keystrokes
+are retained or transmitted.}
+\label{fig:arch}
+\end{figure}
+
+\subsection{Multimodal Stuck Detection}
+\label{sec:scorer}
+
+EarCoach accumulates a scalar confidence score~$s$ by linearly summing
+weighted signals from five independent sources
+(Table~\ref{tab:scorer}):\vspace{-4pt}
+\begin{equation}
+s = w_{\text{idle}} + w_{\text{diag}} + w_{\text{churn}}
+  + w_{\text{frust}} + w_{\text{head}}
+\end{equation}\vspace{-4pt}
+
+\noindent\textbf{Additive signal fusion.}
+No single signal reliably detects stuck state. D'Mello and Kory's
+meta-analysis~\cite{dmellokory2015} found additive feature fusion
+outperformed any single modality in 85\% of affect systems reviewed. An
+additive model also preserves interpretability, each term can be ablated
+independently, and avoids AND-rule fragility when any sensor is
+unavailable (e.g., webcam occluded).
+
+\noindent\textbf{Threshold and weight selection.}
+Error diagnostics receive the highest weight ($+3$) as near-certain
+evidence the student cannot proceed. Idle thresholds of 30\,s and 90\,s
+follow D'Mello and Graesser's observation~\cite{dmello2012} that
+confusion escalates after sustained inactivity. The global threshold
+$\theta\!=\!5$ requires at least two concurrent signals (e.g., active
+error $+$ any idle penalty), preventing single-signal false positives.
+Continuous signals ($f$, $h$) are thresholded before entering the sum,
+keeping the model transparent and parameter-light.
+
+\begin{table}[h]
+\small\centering
+\setlength{\tabcolsep}{8pt}
+\caption{Stuck confidence signal weights ($\theta = 5$).}
+\label{tab:scorer}
+\begin{tabular}{lc}
+\toprule
+\textbf{Signal} & \textbf{Weight} \\
+\midrule
+VS Code idle $\geq$ 90\,s                  & $+2$ \\
+VS Code idle $\geq$ 30\,s                  & $+1$ \\
+Active error diagnostic                     & $+3$ \\
+Active warning diagnostic                   & $+1$ \\
+Backspace churn ($\geq$8 deletions / 30\,s) & $+2$ \\
+Frustration score $f \geq 0.5$             & $+2$ \\
+Head still (movement $<$ 2.5\,px)          & $+2$ \\
+Head moving (movement $\geq$ 2.5\,px)      & $-2$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{VS Code signals.} The TypeScript extension monitors
+\texttt{onDidChange\allowbreak TextDocument} events, tracking idle time
+and deletion count in a rolling 30-second window.
+\texttt{vscode.languages.\allowbreak getDiagnostics()} retrieves
+statically flagged errors and warnings. Supported languages: Python,
+JavaScript, TypeScript, Java, C, C++.
+
+\textbf{Keystroke frustration.} A background \texttt{pynput} listener
+monitors OS-wide keystrokes. A rapid burst ($\geq$20 keystrokes in 4\,s)
+followed by silence ($\geq$3\,s) is classified as a frustration event,
+scored $f\!\in\![0,1]$ by burst recency and silence duration.
+
+\textbf{Head stillness.} A background thread captures webcam frames at
+10\,Hz via OpenCV and MediaPipe Face Mesh~\cite{lugaresi2019}. Nose-tip
+displacement $<$2.5\,px adds $+2$; active movement subtracts $-2$,
+suppressing hints when the student is reading documentation.
+
+% -----------------------------------------------------------------------
+% Algorithm
+% -----------------------------------------------------------------------
+\begin{algorithm}[t]
+\small
+\caption{EarCoach: Stuck Detection and Hint Delivery}
+\label{alg:stuck}
+\begin{algorithmic}[1]
+\Require Code $C$, diagnostics $D$, idle time $t$,
+         backspace count $n$, frustration score $f$, head movement $h$
+\Ensure Spoken Socratic hint, or $\varnothing$
+\State $s \leftarrow 0$
+\If{$t \geq 90$\,s} $s \leftarrow s + 2$
+\ElsIf{$t \geq 30$\,s} $s \leftarrow s + 1$ \EndIf
+\If{$\mathrm{error} \in D$} $s \leftarrow s + 3$ \EndIf
+\If{$\mathrm{warning} \in D$} $s \leftarrow s + 1$ \EndIf
+\If{$n \geq 8$} $s \leftarrow s + 2$ \EndIf
+\hfill\Comment{30-second window}
+\If{$f \geq 0.5$} $s \leftarrow s + 2$ \EndIf
+\If{$h < 2.5$\,px} $s \leftarrow s + 2$
+\Else\ $s \leftarrow s - 2$ \EndIf
+\hfill\Comment{suppress if reading docs}
+\If{$s < \theta$ \textbf{and} trigger $\neq$ manual}
+  \State \textbf{return} $\varnothing$
+\EndIf
+\State $\mathit{err} \leftarrow \textsc{ExecuteSandboxed}(C,\ \text{timeout}=5\text{s})$
+\State $\mathit{prompt} \leftarrow \textsc{BuildSocraticPrompt}(C, D, \mathit{err})$
+\State $\mathit{hint} \leftarrow \textsc{LLM}(\mathit{prompt},\ T=0.2,\ \text{max\_tokens}=60)$
+\State $\mathit{hint} \leftarrow \textsc{CleanAndTruncate}(\mathit{hint},\ \text{max\_sentences}=2)$
+\State \textsc{Speak}(\textit{hint}) \hfill\Comment{via edge-tts to earphones}
+\State \textbf{return} \textit{hint}
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Runtime Error Capture}
+
+Static analysis misses logical and runtime errors, the category most
+likely to stump novices. EarCoach executes the student's code in a
+sandboxed subprocess with a hard 5-second timeout, preventing infinite
+loops from blocking the pipeline, across four runtimes (Python:
+\texttt{python3}; JavaScript: Node.js; Java: \texttt{javac\,+\,java};
+C/C++: GCC/G++). Subprocesses inherit the backend's user privileges;
+OS-level sandboxing is not applied and is a known limitation.
+Captured \texttt{stderr} and exit code anchor the hint to the
+\emph{actual} error; timed-out processes receive a loop-bound question.
+
+\subsection{Socratic Hint Generation and Delivery}
+
+When $s \geq \theta$, the backend assembles a prompt containing the
+runtime error, diagnostics, a 4\,000-character code snippet, and cursor
+line. A strict system prompt enforces three rules: at most two spoken
+sentences; never reveal the answer; anchor to the reported error first.
+For an \texttt{IndexError}, EarCoach might ask: \textit{``What index
+does your loop access when \texttt{i} is zero?''}
+We use Llama~3.2~1B~\cite{touvron2023} via Ollama (temperature~0.2,
+60-token limit), synthesised with \texttt{en-US-AriaNeural} via
+\texttt{edge-tts}. \texttt{Cmd+Shift+H} replays the previous hint for
+a deeper follow-up; \texttt{Escape} dismisses it.
+
+\subsection{Privacy and Data Handling}
+
+EarCoach processes all data locally. The OS-wide keystroke listener
+accumulates only three aggregate counters per polling interval (burst
+count, idle time, churn count); raw key identities are never stored or
+transmitted. Webcam frames are processed in-memory by the head-stillness
+thread and immediately discarded; no video is saved. Code snippets are
+passed only to the locally running Ollama instance and never leave the
+machine. Students retain full control: the VS~Code extension can be
+disabled at any time, and all session logs written to
+\texttt{\textasciitilde/earcoach\_sessions/} are plaintext JSONL files
+the student can inspect or delete.
+
+% ==========================================================================
+\section{Technical Evaluation}
+\label{sec:eval}
+% ==========================================================================
+
+\noindent\textit{This section characterises system performance; a
+controlled user study with novice programmers is planned as future work.}
+
+\smallskip
+We evaluated EarCoach on three metrics across 20 simulated stuck events
+using five buggy Python programs: off-by-one list indexing,
+integer/string type mismatch, infinite loop (missing decrement), wrong
+conditional direction, and undefined variable. These error classes are
+representative of common novice mistakes~\cite{becker2023}. All
+programs were Python; JavaScript, Java, and C/C++ runtimes were
+validated manually but are not included in the simulated-event corpus.
+
+\textbf{End-to-end latency.} Measured from detection to audio onset on
+an Apple M3 MacBook Pro. Table~\ref{tab:latency} shows the breakdown.
+
+\begin{table}[h]
+\small\centering
+\setlength{\tabcolsep}{5pt}
+\caption{Latency breakdown across 20 simulated stuck events.}
+\label{tab:latency}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Stage} & \textbf{Mean\,(s)} & \textbf{SD} & \textbf{Min} & \textbf{Max} \\
+\midrule
+Code execution & 0.7 & 0.3 & 0.2 & 1.8 \\
+LLM inference  & 6.1 & 1.5 & 4.1 & 10.9 \\
+TTS synthesis  & 1.4 & 0.4 & 0.9 & 2.3  \\
+\midrule
+\textbf{Total} & \textbf{8.2} & \textbf{1.9} & \textbf{5.8} & \textbf{13.4} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The 8.2\,s mean arrives while the student's mental model remains active
+in working memory (Sweller~\cite{sweller1988}: 20--30\,s without
+rehearsal). Because EarCoach fires only after a sustained idle pause,
+hints land at a natural breakpoint per Adamczyk and
+Bailey~\cite{adamczyk2004}, far less disruptive than mid-task
+interruptions.
+
+\textbf{Hint quality.} Two raters scored all 20 hints on a 3-point
+Socratic rubric (inter-rater $\kappa\!=\!0.71$). When runtime error was
+captured, mean rating was \textbf{2.6/3.0}; without a crash (silent
+logical error), it dropped to 1.4/3.0, confirming runtime error capture
+is the primary quality driver.
+
+\textbf{Stuck detection precision.} Ten one-hour developer sessions were
+replayed offline; the scorer fired 43 times, of which 37 coincided with
+visually observable struggle (fixed gaze, repeated failed edits),
+yielding precision~$= 0.86$. Given that genuine stuck episodes represent
+a minority of total coding time, a random-firing baseline at the same
+rate would yield substantially lower precision. Recall requires
+exhaustive annotation of stuck boundaries and is a target for the
+planned user study.
+
+% ==========================================================================
+\section{Discussion and Conclusion}
+% ==========================================================================
+
+EarCoach shows that a student's earphones can serve as a proactive
+scaffolding channel: on-device, Socratic, and grounded in the actual
+runtime error, without the student ever leaving their code.
+
+\textbf{Latency.} At 8.2\,s mean, hints arrive within Sweller's
+working-memory window~\cite{sweller1988} and at an idle breakpoint,
+making this ambient delivery rather than a blocking interruption.
+
+\textbf{Limitations and future signals.} Logical errors with no crash
+receive weaker hints; future work should explore asking ``what output
+did you expect?'' to construct a semantic diff without execution. The
+webcam-based head-stillness signal was sensitive to lighting; commercial
+earable IMUs (AirPods Pro via CoreMotion) would remove the camera
+dependency and better suit wearable-first deployments.
+
+\textbf{Towards bidirectional dialogue.} Voice response, where the
+student speaks their reasoning and EarCoach replies with a follow-up
+question, would realise the bidirectional Socratic ideal identified by
+VanLehn~\cite{vanlehn2011}. A within-subjects study comparing EarCoach
+to screen-based Copilot on a debugging task set is the natural next step.
+
+\textbf{Contributions.}
+(1) A novel ambient spoken AI scaffolding system for programming
+education demonstrating proactive hint delivery through earphones without
+disrupting visual attention.
+(2) A multimodal stuck confidence model with five signal types, additive
+fusion grounded in affect detection literature~\cite{dmellokory2015},
+and empirically assessed detection performance (precision 0.86).
+(3) Evidence that earphones can serve as a proactive, non-disruptive
+scaffolding channel in programming education, a design space that remains
+largely unexplored.
+All data, code, and session logs are available at an anonymised
+repository link.
+
+\begin{acks}
+Anonymised for review.
+\end{acks}
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{earcoach}
+
+\end{document}

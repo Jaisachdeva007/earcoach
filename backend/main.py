@@ -164,21 +164,6 @@ async def hint(req: HintRequest):
     if req.trigger == "follow_up" and req.previous_hint:
         follow_up_block = f"\nPrevious hint given: {req.previous_hint}\nStudent asked for elaboration — go one step deeper, still Socratic.\n"
 
-    user_prompt = USER_TEMPLATE.format(
-        trigger=req.trigger,
-        language=req.language,
-        file_name=req.file_name,
-        cursor_line=req.cursor_line,
-        idle_ms=detector_state.idle_ms(),
-        backspaces=detector_state.recent_backspaces(),
-        frustration_score=detector_state.frustration_score(),
-        head_movement=head_state.movement_score() if head_state.is_camera_ok() else "unavailable",
-        diag_block=diag_block,
-        runtime_block=runtime_block,
-        code=truncate_code(req.code),
-    )
-    user_prompt += follow_up_block
-
     # --- Multimodal stuck scoring ---
     has_errors = any(d.severity == "error" for d in req.diagnostics)
     has_warnings = any(d.severity == "warning" for d in req.diagnostics)
@@ -217,6 +202,21 @@ async def hint(req: HintRequest):
         log.info("code runner: exit=%d timed_out=%s summary=%r", run_result.exit_code, run_result.timed_out, run_result.error_summary)
     else:
         runtime_block = "(runtime execution not available for this language)"
+
+    user_prompt = USER_TEMPLATE.format(
+        trigger=req.trigger,
+        language=req.language,
+        file_name=req.file_name,
+        cursor_line=req.cursor_line,
+        idle_ms=detector_state.idle_ms(),
+        backspaces=detector_state.recent_backspaces(),
+        frustration_score=detector_state.frustration_score(),
+        head_movement=head_state.movement_score() if head_state.is_camera_ok() else "unavailable",
+        diag_block=diag_block,
+        runtime_block=runtime_block,
+        code=truncate_code(req.code),
+    )
+    user_prompt += follow_up_block
 
     try:
         text = await call_ollama(SOCRATIC_SYSTEM, user_prompt)
