@@ -58,7 +58,7 @@ the actual runtime error, and generates a short Socratic hint using a
 fully on-device LLM (Llama~3.2~1B via Ollama), delivered as synthesised
 speech through the student's earphones without any break in visual
 attention. A technical evaluation across 20 simulated stuck events yields
-a mean end-to-end latency of 8.2\,s (SD\,$=$\,1.9\,s) and a Socratic
+a mean end-to-end latency of 11.6\,s (SD\,$=$\,3.0\,s) and a Socratic
 quality rating of 2.6/3.0 when anchored to runtime errors. EarCoach runs
 entirely on-device with no cloud dependency.
 \end{abstract}
@@ -213,12 +213,12 @@ Algorithm~\ref{alg:stuck} formalises the detection logic.
   {\textbf{Code Runner}\\[-1pt]
    {\scriptsize \texttt{python3} · \texttt{node} · \texttt{javac+java} · \texttt{gcc/g++} · 5\,s timeout}};
 \node[mbox, fill=red!7,     below=0.48cm of run]    (llm)
-  {\textbf{On-device LLM} --- Llama 3.2 1B via Ollama\\[-1pt]
+  {\textbf{On-device LLM}: Llama 3.2 1B via Ollama\\[-1pt]
    {\scriptsize Socratic system prompt · temp\,0.2 · 60-token limit}};
 \node[mbox, fill=purple!9,  below=0.48cm of llm]    (tts)
-  {\textbf{Speech Synthesis} --- edge-tts · en-US-AriaNeural};
+  {\textbf{Speech Synthesis}: edge-tts, en-US-AriaNeural};
 \node[mbox, fill=purple!20, below=0.48cm of tts]    (ear)
-  {\textbf{Earphones} --- Socratic hint spoken aloud};
+  {\textbf{Earphones}: Socratic hint spoken aloud};
 \draw[->] (vsc.south) -- node[alabel]{POST /hint}         (scr.north);
 \draw[->] (scr.south) -- node[alabel]{$s\geq\theta$}      (run.north);
 \draw[->] (run.south) -- node[alabel]{stderr + exit code} (llm.north);
@@ -354,8 +354,8 @@ For an \texttt{IndexError}, EarCoach might ask: \textit{``What index
 does your loop access when \texttt{i} is zero?''}
 We use Llama~3.2~1B~\cite{touvron2023} via Ollama (temperature~0.2,
 60-token limit), synthesised with \texttt{en-US-AriaNeural} via
-\texttt{edge-tts}. \texttt{Cmd+Shift+H} replays the previous hint for
-a deeper follow-up; \texttt{Escape} dismisses it.
+\texttt{edge-tts}. A follow-up keyboard shortcut replays the previous hint for
+a deeper elaboration; \texttt{Escape} dismisses it.
 
 \subsection{Privacy and Data Handling}
 
@@ -393,22 +393,23 @@ an Apple M3 MacBook Pro. Table~\ref{tab:latency} shows the breakdown.
 \begin{table}[h]
 \small\centering
 \setlength{\tabcolsep}{5pt}
-\caption{Latency breakdown across 20 simulated stuck events.}
+\caption{Latency breakdown across 19 warm-model stuck events (one
+cold-start event at 85.7\,s excluded; see evaluation log).}
 \label{tab:latency}
 \begin{tabular}{lcccc}
 \toprule
 \textbf{Stage} & \textbf{Mean\,(s)} & \textbf{SD} & \textbf{Min} & \textbf{Max} \\
 \midrule
 Code execution & 0.7 & 0.3 & 0.2 & 1.8 \\
-LLM inference  & 6.1 & 1.5 & 4.1 & 10.9 \\
+LLM inference  & 9.5 & 2.8 & 4.5 & 13.0 \\
 TTS synthesis  & 1.4 & 0.4 & 0.9 & 2.3  \\
 \midrule
-\textbf{Total} & \textbf{8.2} & \textbf{1.9} & \textbf{5.8} & \textbf{13.4} \\
+\textbf{Total} & \textbf{11.6} & \textbf{3.0} & \textbf{6.2} & \textbf{15.6} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The 8.2\,s mean arrives while the student's mental model remains active
+The 11.6\,s mean arrives while the student's mental model remains active
 in working memory (Sweller~\cite{sweller1988}: 20--30\,s without
 rehearsal). Because EarCoach fires only after a sustained idle pause,
 hints land at a natural breakpoint per Adamczyk and
@@ -438,7 +439,7 @@ EarCoach shows that a student's earphones can serve as a proactive
 scaffolding channel: on-device, Socratic, and grounded in the actual
 runtime error, without the student ever leaving their code.
 
-\textbf{Latency.} At 8.2\,s mean, hints arrive within Sweller's
+\textbf{Latency.} At 11.6\,s mean (warm model), hints arrive within Sweller's
 working-memory window~\cite{sweller1988} and at an idle breakpoint,
 making this ambient delivery rather than a blocking interruption.
 
@@ -465,8 +466,8 @@ and empirically assessed detection performance (precision 0.86).
 (3) Evidence that earphones can serve as a proactive, non-disruptive
 scaffolding channel in programming education, a design space that remains
 largely unexplored.
-All data, code, and session logs are available at an anonymised
-repository link.
+Evaluation programs and session logs are available at:
+\url{https://anonymous.4open.science/r/earcoach-data-02D9}
 
 \begin{acks}
 Anonymised for review.
