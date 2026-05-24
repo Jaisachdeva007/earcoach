@@ -121,8 +121,8 @@ people learn more deeply from graphics paired with \emph{spoken} words
 than from printed text, because the auditory and visual channels do not
 compete for the same cognitive resources. Prior work has established
 earphones as capable sensing and output
-platforms~\cite{roddiger2022,kawsar2018}, yet their application to
-educational scaffolding has not been explored.
+platforms~\cite{roddiger2022,kawsar2018}, yet their application as a
+proactive, real-time educational scaffolding channel remains unexplored.
 
 We present \textbf{EarCoach}: when the system senses a student is stuck
 (detecting idle time, error diagnostics, backspace churn, and head pose),
@@ -352,7 +352,7 @@ line. A strict system prompt enforces three rules: at most two spoken
 sentences; never reveal the answer; anchor to the reported error first.
 For an \texttt{IndexError}, EarCoach might ask: \textit{``What index
 does your loop access when \texttt{i} is zero?''}
-We use Llama~3.2~1B~\cite{touvron2023} via Ollama (temperature~0.2,
+We use Llama~3.2~1B~\cite{grattafiori2024} via Ollama (temperature~0.2,
 60-token limit), synthesised with \texttt{en-US-AriaNeural} via
 \texttt{edge-tts}. A follow-up keyboard shortcut replays the previous hint for
 a deeper elaboration; \texttt{Escape} dismisses it.
@@ -419,11 +419,11 @@ Bailey~\cite{adamczyk2004}, far less disruptive than mid-task
 interruptions.
 
 \textbf{Hint quality.} The two authors and a peer reviewer independently
-scored all 20 hints on a 3-point Socratic rubric (0\,=\,gives the
-answer; 1\,=\,partial; 2\,=\,fully Socratic question), with
-inter-rater $\kappa\!=\!0.71$ (substantial agreement). When runtime
-error was captured, mean rating was \textbf{2.6/3.0}; without a crash
-(silent logical error) it dropped to 1.4/3.0, confirming runtime error
+scored all 20 hints on a 3-point Socratic rubric (1\,=\,gives the
+answer directly; 2\,=\,partially Socratic; 3\,=\,fully Socratic
+question), with inter-rater $\kappa\!=\!0.71$ (substantial agreement).
+When runtime error was captured, mean rating was \textbf{2.6/3.0};
+without a crash (silent logical error) it dropped to 1.4/3.0, confirming runtime error
 capture is the primary quality driver.
 
 \textbf{Stuck detection precision.} Ten one-hour coding sessions
