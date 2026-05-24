@@ -375,8 +375,10 @@ the student can inspect or delete.
 \label{sec:eval}
 % ==========================================================================
 
-\noindent\textit{This section characterises system performance; a
-controlled user study with novice programmers is planned as future work.}
+\noindent\textit{This section characterises system performance through
+technical benchmarking and informal author evaluation; no external
+participants were involved. An ethics-approved user study with novice
+programmers is planned as future work.}
 
 \smallskip
 We evaluated EarCoach on three metrics across 20 simulated stuck events
@@ -416,20 +418,23 @@ hints land at a natural breakpoint per Adamczyk and
 Bailey~\cite{adamczyk2004}, far less disruptive than mid-task
 interruptions.
 
-\textbf{Hint quality.} Two raters scored all 20 hints on a 3-point
-Socratic rubric (inter-rater $\kappa\!=\!0.71$). When runtime error was
-captured, mean rating was \textbf{2.6/3.0}; without a crash (silent
-logical error), it dropped to 1.4/3.0, confirming runtime error capture
-is the primary quality driver.
+\textbf{Hint quality.} The two authors and a peer reviewer independently
+scored all 20 hints on a 3-point Socratic rubric (0\,=\,gives the
+answer; 1\,=\,partial; 2\,=\,fully Socratic question), with
+inter-rater $\kappa\!=\!0.71$ (substantial agreement). When runtime
+error was captured, mean rating was \textbf{2.6/3.0}; without a crash
+(silent logical error) it dropped to 1.4/3.0, confirming runtime error
+capture is the primary quality driver.
 
-\textbf{Stuck detection precision.} Ten one-hour developer sessions were
-replayed offline; the scorer fired 43 times, of which 37 coincided with
-visually observable struggle (fixed gaze, repeated failed edits),
+\textbf{Stuck detection precision.} Ten one-hour coding sessions
+self-recorded by the authors during development were replayed offline;
+the scorer fired 43 times, of which 37 coincided with author-annotated
+struggle episodes (repeated failed edits, sustained idle periods),
 yielding precision~$= 0.86$. Given that genuine stuck episodes represent
 a minority of total coding time, a random-firing baseline at the same
 rate would yield substantially lower precision. Recall requires
-exhaustive annotation of stuck boundaries and is a target for the
-planned user study.
+exhaustive ground-truth annotation of stuck boundaries and is a target
+for the planned ethics-approved user study with novice programmers.
 
 % ==========================================================================
 \section{Discussion and Conclusion}
